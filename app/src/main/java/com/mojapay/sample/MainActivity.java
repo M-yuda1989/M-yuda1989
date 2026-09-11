@@ -19,37 +19,325 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
     private final int GREEN = Color.parseColor("#0B6E4F");
     private final int GREEN_DARK = Color.parseColor("#07563E");
-    private final int LIGHT_GREEN = Color.parseColor("#E9F6F0");
-    private final int TEXT = Color.parseColor("#273043");
+    private final int LIGHT_GREEN = Color.parseColor("#E8F5EF");
+    private final int TEXT = Color.parseColor("#263238");
     private final int MUTED = Color.parseColor("#6B7280");
+    private final int BG = Color.parseColor("#F4F7FB");
 
-    private int dp(int value) { return (int) (value * getResources().getDisplayMetrics().density + 0.5f); }
+    private Spinner networkSpinner;
+    private TextView networkStatus;
+    private TextView txCountView;
+    private TextView txValueView;
+    private TextView commissionView;
+    private int txCount = 0;
+    private long txValue = 0;
+    private int refCounter = 1;
+    private final ArrayList<String> history = new ArrayList<>();
 
-    private GradientDrawable rounded(int color, int radiusDp) {
+    private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + 0.5f); }
+
+    private GradientDrawable rounded(int color, int radius) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
-        d.setCornerRadius(dp(radiusDp));
+        d.setCornerRadius(dp(radius));
         return d;
     }
 
-    private TextView label(String text) {
-        TextView v = new TextView(this);
-        v.setText(text);
-        v.setTextColor(TEXT);
-        v.setTextSize(14);
-        v.setTypeface(null, Typeface.BOLD);
-        v.setPadding(0, dp(14), 0, dp(6));
-        return v;
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(null, Typeface.BOLD);
+        return t;
     }
 
-    private void styleTab(Button button, boolean active) {
-        button.setTextColor(active ? Color.WHITE : GREEN_DARK);
-        button.setBackground(rounded(active ? GREEN : LIGHT_GREEN, 16));
+    private TextView label(String value) {
+        TextView t = text(value, 13, TEXT, true);
+        t.setPadding(0, dp(10), 0, dp(5));
+        return t;
+    }
+
+    private Button actionButton(String title) {
+        Button b = new Button(this);
+        b.setText(title);
+        b.setTextSize(13);
+        b.setTypeface(null, Typeface.BOLD);
+        b.setTextColor(GREEN_DARK);
+        b.setBackground(rounded(LIGHT_GREEN, 16));
+        return b;
+    }
+
+    private EditText input(String hint, boolean number) {
+        EditText e = new EditText(this);
+        e.setHint(hint);
+        e.setTextSize(15);
+        e.setInputType(number ? InputType.TYPE_CLASS_NUMBER : InputType.TYPE_CLASS_PHONE);
+        return e;
+    }
+
+    private String selectedNetwork() {
+        return String.valueOf(networkSpinner.getSelectedItem());
+    }
+
+    private String ref() {
+        return String.format(Locale.US, "MP-260911-%06d", refCounter++);
+    }
+
+    private String money(long value) {
+        return "TSh " + NumberFormat.getNumberInstance(Locale.US).format(value);
+    }
+
+    private long parseAmount(EditText amount) {
+        try { return Long.parseLong(amount.getText().toString().replace(",", "").trim()); }
+        catch (Exception e) { return -1; }
+    }
+
+    private void addHistory(String service, String destination, long amount, String reference, String status) {
+        txCount++;
+        txValue += amount;
+        history.add(0, service + " • " + selectedNetwork() + "\n" + destination + " • " + money(amount) + "\n" + reference + " • " + status);
+        updateDashboard();
+    }
+
+    private void updateDashboard() {
+        txCountView.setText(String.valueOf(txCount));
+        txValueView.setText(money(txValue));
+        long est = Math.round(txValue * 0.005);
+        commissionView.setText(money(est) + " (estimate)");
+    }
+
+    private LinearLayout formRoot() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        return box;
+    }
+
+    private void showReceipt(String service, String destination, long amount, String reference, String extra) {
+        String receipt = "CUSTOMER COPY\n" +
+                "MojaPay DEMO\n\n" +
+                "Network: " + selectedNetwork() + "\n" +
+                "Service: " + service + "\n" +
+                "Destination: " + destination + "\n" +
+                "Amount: " + money(amount) + "\n" +
+                (extra.length() > 0 ? extra + "\n" : "") +
+                "MojaPay Ref: " + reference + "\n" +
+                "Status: SUCCESSFUL\n\n" +
+                "AGENT COPY pia imehifadhiwa kwenye demo history.\n" +
+                "Huu ni mfano tu — hakuna pesa halisi iliyohamishwa.";
+        new AlertDialog.Builder(this)
+                .setTitle("Moja Pay Receipt")
+                .setMessage(receipt)
+                .setPositiveButton("SAWA", null)
+                .show();
+    }
+
+    private void showSimpleForm(final String service, String phoneLabel) {
+        LinearLayout box = formRoot();
+        box.addView(label("Network"));
+        TextView net = text(selectedNetwork() + " • SIM AVAILABLE (DEMO)", 15, GREEN_DARK, true);
+        box.addView(net);
+        box.addView(label(phoneLabel));
+        EditText phone = input("07XXXXXXXX", false);
+        box.addView(phone);
+        box.addView(label("Kiasi (TZS)"));
+        EditText amount = input("50000", true);
+        box.addView(amount);
+
+        new AlertDialog.Builder(this)
+                .setTitle(service + " — DEMO")
+                .setView(box)
+                .setNegativeButton("GHAIRI", null)
+                .setPositiveButton("HAKIKI", null)
+                .create().setOnShowListener(dialog -> {
+                    AlertDialog d = (AlertDialog) dialog;
+                    d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                        String p = phone.getText().toString().trim();
+                        long a = parseAmount(amount);
+                        if (p.length() < 4 || a <= 0) {
+                            Toast.makeText(this, "Jaza namba na kiasi sahihi.", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        d.dismiss();
+                        confirmGeneric(service, p, a, "");
+                    });
+                });
+        AlertDialog dlg = new AlertDialog.Builder(this).create();
+        // dialog is created above through builder; this dummy line is intentionally unused.
+    }
+
+    private void confirmGeneric(String service, String destination, long amount, String extra) {
+        String msg = "HII NI NAMBA / DESTINATION SAHIHI?\n\n" +
+                "Network: " + selectedNetwork() + "\n" +
+                "Service: " + service + "\n" +
+                "Destination: " + destination + "\n" +
+                "Amount: " + money(amount) + "\n\n" +
+                "Demo ita-simulate provider authorization tu.";
+        new AlertDialog.Builder(this)
+                .setTitle("Hakiki Muamala")
+                .setMessage(msg)
+                .setNegativeButton("EDIT", null)
+                .setPositiveButton("YES — ENDELEA", (d, w) -> {
+                    String r = ref();
+                    addHistory(service, destination, amount, r, "SUCCESSFUL");
+                    showReceipt(service, destination, amount, r, extra);
+                })
+                .show();
+    }
+
+    private void showCashOut() {
+        LinearLayout box = formRoot();
+        box.addView(label("Network"));
+        box.addView(text(selectedNetwork() + " • SIM AVAILABLE (DEMO)", 15, GREEN_DARK, true));
+        box.addView(label("Namba ya mteja anayetoa pesa"));
+        EditText phone = input("07XXXXXXXX", false);
+        box.addView(phone);
+        box.addView(label("Kiasi (TZS)"));
+        EditText amount = input("50000", true);
+        box.addView(amount);
+
+        AlertDialog entry = new AlertDialog.Builder(this)
+                .setTitle("TOA PESA — DEMO")
+                .setView(box)
+                .setNegativeButton("GHAIRI", null)
+                .setPositiveButton("REQUEST WITHDRAWAL", null)
+                .create();
+        entry.setOnShowListener(x -> entry.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String p = phone.getText().toString().trim();
+            long a = parseAmount(amount);
+            if (p.length() < 4 || a <= 0) {
+                Toast.makeText(this, "Jaza namba na kiasi sahihi.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            entry.dismiss();
+            new AlertDialog.Builder(this)
+                    .setTitle("AWAITING CUSTOMER CONFIRMATION")
+                    .setMessage("SUBIRI — Mteja anathibitisha muamala kwenye simu yake.\n\nUSIMPE MTEJA CASH BADO.\n\nDEMO: bonyeza hapa ku-simulate customer/provider confirmation.")
+                    .setNegativeButton("CANCEL", null)
+                    .setPositiveButton("SIMULATE CONFIRMED", (a1, b1) -> showCashSuccess(p, a))
+                    .show();
+        }));
+        entry.show();
+    }
+
+    private void showCashSuccess(String phone, long amount) {
+        String r = ref();
+        AlertDialog success = new AlertDialog.Builder(this)
+                .setTitle("MUAMALA UMEFANIKIWA")
+                .setMessage("PROVIDER SUCCESS — DEMO\n\nMPE MTEJA " + money(amount) + " CASH.\n\nBaada ya kumpa pesa kimwili, bonyeza CASH GIVEN.")
+                .setCancelable(false)
+                .setPositiveButton("CASH GIVEN", null)
+                .create();
+        success.setOnShowListener(x -> success.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            success.dismiss();
+            addHistory("TOA PESA", phone, amount, r, "CASH GIVEN");
+            showReceipt("TOA PESA", phone, amount, r, "Cash handover: CASH GIVEN");
+        }));
+        success.show();
+    }
+
+    private void showBankTransfer() {
+        LinearLayout box = formRoot();
+        box.addView(label("Mobile Money source"));
+        box.addView(text(selectedNetwork(), 15, GREEN_DARK, true));
+        box.addView(label("Chagua Bank"));
+        Spinner bank = new Spinner(this);
+        String[] banks = {"NMB", "CRDB", "NBC", "Equity", "Absa", "Stanbic", "Exim"};
+        bank.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, banks));
+        box.addView(bank);
+        box.addView(label("Account Number"));
+        EditText account = input("Account number", true);
+        box.addView(account);
+        box.addView(label("Kiasi (TZS)"));
+        EditText amount = input("100000", true);
+        box.addView(amount);
+        TextView note = text("Account-name verification haipatikani kwenye demo hii.", 12, MUTED, false);
+        note.setPadding(0, dp(8), 0, 0);
+        box.addView(note);
+
+        AlertDialog d = new AlertDialog.Builder(this)
+                .setTitle("TUMA BENKI — DEMO")
+                .setView(box)
+                .setNegativeButton("GHAIRI", null)
+                .setPositiveButton("HAKIKI", null)
+                .create();
+        d.setOnShowListener(x -> d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String acc = account.getText().toString().trim();
+            long a = parseAmount(amount);
+            if (acc.length() < 4 || a <= 0) {
+                Toast.makeText(this, "Jaza account na kiasi sahihi.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            d.dismiss();
+            String dest = bank.getSelectedItem() + " A/C " + acc;
+            confirmGeneric("TUMA BENKI", dest, a, "Bank: " + bank.getSelectedItem());
+        }));
+        d.show();
+    }
+
+    private void showBillPay() {
+        LinearLayout box = formRoot();
+        box.addView(label("Network"));
+        box.addView(text(selectedNetwork(), 15, GREEN_DARK, true));
+        box.addView(label("Biller"));
+        Spinner biller = new Spinner(this);
+        String[] billers = {"LUKU / Umeme", "Maji", "DStv", "Azam TV", "StarTimes", "Internet", "Government / Control No.", "School Fees", "Merchant Payment"};
+        biller.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, billers));
+        box.addView(biller);
+        box.addView(label("Meter / Control / Account Number"));
+        EditText number = input("Weka namba", true);
+        box.addView(number);
+        box.addView(label("Kiasi (TZS)"));
+        EditText amount = input("20000", true);
+        box.addView(amount);
+
+        AlertDialog d = new AlertDialog.Builder(this)
+                .setTitle("LIPA BILI — DEMO")
+                .setView(box)
+                .setNegativeButton("GHAIRI", null)
+                .setPositiveButton("HAKIKI", null)
+                .create();
+        d.setOnShowListener(x -> d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String n = number.getText().toString().trim();
+            long a = parseAmount(amount);
+            if (n.length() < 3 || a <= 0) {
+                Toast.makeText(this, "Jaza namba na kiasi sahihi.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            d.dismiss();
+            String b = String.valueOf(biller.getSelectedItem());
+            String extra = b.startsWith("LUKU") ? "Demo Token: 1234 5678 9012 3456 7890" : "Biller: " + b;
+            confirmGeneric("LIPA BILI", b + " • " + n, a, extra);
+        }));
+        d.show();
+    }
+
+    private void showBalance() {
+        new AlertDialog.Builder(this)
+                .setTitle("SALIO / FLOAT — SAMPLE DATA")
+                .setMessage("Airtel Float: TSh 1,200,000\nM-Pesa Float: TSh 950,000\nMixx Float: TSh 780,000\nHaloPesa Float: TSh 420,000\nAgent Cash: TSh 850,000\n\nHizi ni SAMPLE DATA za demo tu.")
+                .setPositiveButton("SAWA", null)
+                .show();
+    }
+
+    private void showHistory() {
+        StringBuilder s = new StringBuilder();
+        if (history.isEmpty()) s.append("Bado hakuna demo transactions.");
+        else {
+            for (String h : history) s.append(h).append("\n\n");
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Transaction History — DEMO")
+                .setMessage(s.toString())
+                .setPositiveButton("SAWA", null)
+                .show();
     }
 
     @Override
@@ -58,196 +346,118 @@ public class MainActivity extends Activity {
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.parseColor("#F4F7FB"));
-
+        scroll.setBackgroundColor(BG);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(24), dp(20), dp(28));
+        root.setPadding(dp(18), dp(22), dp(18), dp(28));
         scroll.addView(root);
 
-        TextView mark = new TextView(this);
-        mark.setText("M");
-        mark.setTextColor(Color.WHITE);
-        mark.setTextSize(30);
-        mark.setTypeface(null, Typeface.BOLD);
+        TextView mark = text("M", 30, Color.WHITE, true);
         mark.setGravity(Gravity.CENTER);
         GradientDrawable circle = new GradientDrawable();
         circle.setShape(GradientDrawable.OVAL);
         circle.setColor(GREEN);
         mark.setBackground(circle);
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(72), dp(72));
-        markParams.gravity = Gravity.CENTER_HORIZONTAL;
-        root.addView(mark, markParams);
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(dp(68), dp(68));
+        mp.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(mark, mp);
 
-        TextView logo = new TextView(this);
-        logo.setText("MOJA PAY");
-        logo.setTextColor(GREEN_DARK);
-        logo.setTextSize(29);
+        TextView logo = text("MOJA PAY", 28, GREEN_DARK, true);
         logo.setGravity(Gravity.CENTER);
-        logo.setTypeface(null, Typeface.BOLD);
-        logo.setPadding(0, dp(8), 0, 0);
+        logo.setPadding(0, dp(7), 0, 0);
         root.addView(logo);
+        TextView tagline = text("One App. All Payments. • MASTER PROMPT DEMO", 12, MUTED, false);
+        tagline.setGravity(Gravity.CENTER);
+        tagline.setPadding(0, dp(2), 0, dp(14));
+        root.addView(tagline);
 
-        TextView tag = new TextView(this);
-        tag.setText("Huduma moja • Malipo mengi • Sample Demo");
-        tag.setTextColor(MUTED);
-        tag.setTextSize(13);
-        tag.setGravity(Gravity.CENTER);
-        tag.setPadding(0, dp(3), 0, dp(16));
-        root.addView(tag);
-
-        TextView warning = new TextView(this);
-        warning.setText("DEMO TU — haitumi pesa halisi, PIN wala OTP.");
-        warning.setTextColor(Color.parseColor("#8A4B00"));
-        warning.setBackground(rounded(Color.parseColor("#FFF3D6"), 12));
-        warning.setPadding(dp(12), dp(11), dp(12), dp(11));
+        TextView warning = text("DEMO / SIMULATION TU — haitumii pesa halisi, PIN wala OTP.", 12, Color.parseColor("#8A4B00"), true);
         warning.setGravity(Gravity.CENTER);
+        warning.setPadding(dp(10), dp(10), dp(10), dp(10));
+        warning.setBackground(rounded(Color.parseColor("#FFF3D6"), 12));
         root.addView(warning);
 
-        root.addView(label("Chagua huduma"));
+        root.addView(label("CHAGUA MTANDAO"));
+        networkSpinner = new Spinner(this);
+        String[] networks = {"Airtel Money", "M-Pesa", "Mixx by Yas", "HaloPesa"};
+        networkSpinner.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, networks));
+        root.addView(networkSpinner, new LinearLayout.LayoutParams(-1, dp(52)));
+        networkStatus = text("SIM AVAILABLE • ACTIVE (DEMO)", 12, GREEN_DARK, true);
+        networkStatus.setPadding(0, 0, 0, dp(10));
+        root.addView(networkStatus);
 
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setOrientation(LinearLayout.HORIZONTAL);
-        Button sendTab = new Button(this);
-        sendTab.setText("TUMA / LIPA");
-        sendTab.setTextSize(14);
-        sendTab.setTypeface(null, Typeface.BOLD);
-        styleTab(sendTab, true);
-        Button cashTab = new Button(this);
-        cashTab.setText("TOA PESA");
-        cashTab.setTextSize(14);
-        cashTab.setTypeface(null, Typeface.BOLD);
-        styleTab(cashTab, false);
-        LinearLayout.LayoutParams tab1 = new LinearLayout.LayoutParams(0, dp(52), 1f);
-        tab1.setMargins(0, 0, dp(5), 0);
-        LinearLayout.LayoutParams tab2 = new LinearLayout.LayoutParams(0, dp(52), 1f);
-        tab2.setMargins(dp(5), 0, 0, 0);
-        tabs.addView(sendTab, tab1);
-        tabs.addView(cashTab, tab2);
-        root.addView(tabs);
+        LinearLayout dash = new LinearLayout(this);
+        dash.setOrientation(LinearLayout.VERTICAL);
+        dash.setPadding(dp(14), dp(12), dp(14), dp(12));
+        dash.setBackground(rounded(Color.WHITE, 16));
+        TextView dashTitle = text("DASHBOARD YA LEO — DEMO", 14, TEXT, true);
+        dash.addView(dashTitle);
+        LinearLayout r1 = new LinearLayout(this);
+        r1.setOrientation(LinearLayout.HORIZONTAL);
+        TextView c1 = text("Miamala\n", 12, MUTED, false); txCountView = text("0", 17, GREEN_DARK, true); c1.append(txCountView.getText());
+        TextView c2 = text("Thamani\nTSh 0", 12, MUTED, false);
+        txValueView = c2;
+        r1.addView(c1, new LinearLayout.LayoutParams(0, -2, 1f));
+        r1.addView(c2, new LinearLayout.LayoutParams(0, -2, 1f));
+        dash.addView(r1);
+        commissionView = text("TSh 0 (estimate)", 13, GREEN_DARK, true);
+        TextView commissionLabel = text("Commission estimate: ", 12, MUTED, false);
+        LinearLayout cr = new LinearLayout(this);
+        cr.setOrientation(LinearLayout.HORIZONTAL);
+        cr.addView(commissionLabel);
+        cr.addView(commissionView);
+        cr.setPadding(0, dp(8), 0, 0);
+        dash.addView(cr);
+        TextView floatSample = text("Cash sample: TSh 850,000 • Float summary: DEMO", 12, MUTED, false);
+        floatSample.setPadding(0, dp(6), 0, 0);
+        dash.addView(floatSample);
+        LinearLayout.LayoutParams dpms = new LinearLayout.LayoutParams(-1, -2);
+        dpms.setMargins(0, 0, 0, dp(14));
+        root.addView(dash, dpms);
 
-        TextView fromLabel = label("Pesa inatoka wapi?");
-        root.addView(fromLabel);
-        Spinner from = new Spinner(this);
-        String[] fromItems = {"Airtel Money", "M-Pesa", "Mixx by Yas / Tigo Pesa", "HaloPesa"};
-        from.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, fromItems));
-        root.addView(from, new LinearLayout.LayoutParams(-1, dp(52)));
+        root.addView(label("HUDUMA"));
+        LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
+        Button weka = actionButton("WEKA PESA");
+        Button toa = actionButton("TOA PESA");
+        row1.addView(weka, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        row1.addView(toa, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        root.addView(row1);
 
-        TextView toLabel = label("Inaenda wapi?");
-        root.addView(toLabel);
-        Spinner to = new Spinner(this);
-        String[] toItems = {"Airtel Money", "M-Pesa", "Mixx by Yas / Tigo Pesa", "HaloPesa", "NMB Bank", "CRDB Bank", "NBC Bank", "LUKU / Bili"};
-        to.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, toItems));
-        root.addView(to, new LinearLayout.LayoutParams(-1, dp(52)));
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        Button tuma = actionButton("TUMA PESA");
+        Button bank = actionButton("TUMA BENKI");
+        row2.addView(tuma, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        row2.addView(bank, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        root.addView(row2);
 
-        TextView recipientLabel = label("Namba ya mpokeaji / akaunti");
-        root.addView(recipientLabel);
-        EditText recipient = new EditText(this);
-        recipient.setHint("Mfano: 07XXXXXXXX");
-        recipient.setInputType(InputType.TYPE_CLASS_PHONE);
-        root.addView(recipient, new LinearLayout.LayoutParams(-1, dp(56)));
+        LinearLayout row3 = new LinearLayout(this); row3.setOrientation(LinearLayout.HORIZONTAL);
+        Button bill = actionButton("LIPA BILI");
+        Button balance = actionButton("ANGALIA SALIO");
+        row3.addView(bill, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        row3.addView(balance, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        root.addView(row3);
 
-        root.addView(label("Kiasi (TZS)"));
-        EditText amount = new EditText(this);
-        amount.setHint("Mfano: 10,000");
-        amount.setInputType(InputType.TYPE_CLASS_NUMBER);
-        root.addView(amount, new LinearLayout.LayoutParams(-1, dp(56)));
+        Button hist = new Button(this);
+        hist.setText("TRANSACTION HISTORY / RECEIPTS");
+        hist.setTextColor(Color.WHITE);
+        hist.setTypeface(null, Typeface.BOLD);
+        hist.setBackground(rounded(GREEN, 16));
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, dp(56));
+        hp.setMargins(0, dp(12), 0, 0);
+        root.addView(hist, hp);
 
-        TextView cashHint = new TextView(this);
-        cashHint.setText("Kwa Toa Pesa: chagua mtandao wa mteja, weka namba na kiasi. Hii ni simulation ya wakala tu.");
-        cashHint.setTextColor(MUTED);
-        cashHint.setTextSize(12);
-        cashHint.setPadding(0, dp(8), 0, 0);
-        cashHint.setVisibility(View.GONE);
-        root.addView(cashHint);
-
-        Button confirm = new Button(this);
-        confirm.setText("THIBITISHA MALIPO YA DEMO");
-        confirm.setTextSize(15);
-        confirm.setTypeface(null, Typeface.BOLD);
-        confirm.setTextColor(Color.WHITE);
-        confirm.setBackground(rounded(GREEN, 16));
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(58));
-        bp.setMargins(0, dp(22), 0, dp(12));
-        root.addView(confirm, bp);
-
-        TextView footer = new TextView(this);
-        footer.setText("Moja Pay Sample v0.2 • Demo ya wazo tu");
+        TextView footer = text("Moja Pay v0.3 Master Prompt Demo • No real-money connection", 11, Color.GRAY, false);
         footer.setGravity(Gravity.CENTER);
-        footer.setTextColor(Color.GRAY);
-        footer.setPadding(0, dp(12), 0, 0);
+        footer.setPadding(0, dp(16), 0, 0);
         root.addView(footer);
 
-        final boolean[] cashMode = {false};
-
-        sendTab.setOnClickListener(v -> {
-            cashMode[0] = false;
-            styleTab(sendTab, true);
-            styleTab(cashTab, false);
-            fromLabel.setText("Pesa inatoka wapi?");
-            toLabel.setVisibility(View.VISIBLE);
-            to.setVisibility(View.VISIBLE);
-            recipientLabel.setText("Namba ya mpokeaji / akaunti");
-            cashHint.setVisibility(View.GONE);
-            confirm.setText("THIBITISHA MALIPO YA DEMO");
-        });
-
-        cashTab.setOnClickListener(v -> {
-            cashMode[0] = true;
-            styleTab(sendTab, false);
-            styleTab(cashTab, true);
-            fromLabel.setText("Mtandao wa mteja");
-            toLabel.setVisibility(View.GONE);
-            to.setVisibility(View.GONE);
-            recipientLabel.setText("Namba ya mteja anayetoa pesa");
-            cashHint.setVisibility(View.VISIBLE);
-            confirm.setText("THIBITISHA TOA PESA — DEMO");
-        });
-
-        confirm.setOnClickListener(v -> {
-            String r = recipient.getText().toString().trim();
-            String a = amount.getText().toString().replace(",", "").trim();
-            if (r.length() < 4 || a.length() == 0) {
-                Toast.makeText(MainActivity.this, "Jaza namba na kiasi kwanza.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            long value;
-            try { value = Long.parseLong(a); }
-            catch (Exception e) {
-                Toast.makeText(MainActivity.this, "Kiasi si sahihi.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            String money = NumberFormat.getNumberInstance(Locale.US).format(value);
-            String ref = "MJP-DEMO-" + String.valueOf(System.currentTimeMillis()).substring(7);
-            String receipt;
-            if (cashMode[0]) {
-                receipt = "TOA PESA — DEMO IMEFANIKIWA\n\n" +
-                        "Huduma: Toa Pesa\n" +
-                        "Mtandao: " + from.getSelectedItem() + "\n" +
-                        "Namba ya mteja: " + r + "\n" +
-                        "Kiasi: TZS " + money + "\n" +
-                        "Njia: Cash kupitia Wakala\n" +
-                        "Reference: " + ref + "\n\n" +
-                        "Hii ni receipt ya mfano tu. Hakuna pesa halisi iliyotolewa.";
-            } else {
-                receipt = "MUAMALA WA DEMO UMEFANIKIWA\n\n" +
-                        "Huduma: Tuma / Lipa\n" +
-                        "Kutoka: " + from.getSelectedItem() + "\n" +
-                        "Kwenda: " + to.getSelectedItem() + "\n" +
-                        "Mpokeaji: " + r + "\n" +
-                        "Kiasi: TZS " + money + "\n" +
-                        "Reference: " + ref + "\n\n" +
-                        "Hii ni receipt ya mfano tu. Hakuna pesa halisi iliyohamishwa.";
-            }
-
-            new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("Moja Pay Receipt")
-                    .setMessage(receipt)
-                    .setPositiveButton("SAWA", null)
-                    .show();
-        });
+        weka.setOnClickListener(v -> showSimpleForm("WEKA PESA", "Namba ya mteja"));
+        toa.setOnClickListener(v -> showCashOut());
+        tuma.setOnClickListener(v -> showSimpleForm("TUMA PESA", "Namba ya mpokeaji"));
+        bank.setOnClickListener(v -> showBankTransfer());
+        bill.setOnClickListener(v -> showBillPay());
+        balance.setOnClickListener(v -> showBalance());
+        hist.setOnClickListener(v -> showHistory());
 
         setContentView(scroll);
     }
