@@ -1,10 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="false"
-        android:icon="@drawable/ic_mojapay"
-        android:roundIcon="@drawable/ic_mojapay"
-        android:label="Moja Pay Demo"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:icon="@drawable/ic_onesocial"
+        android:roundIcon="@drawable/ic_onesocial"
+        android:label="One Social Demo"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
