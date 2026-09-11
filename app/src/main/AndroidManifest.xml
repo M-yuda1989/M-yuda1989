@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="false"
+        android:icon="@drawable/ic_mojapay"
+        android:roundIcon="@drawable/ic_mojapay"
         android:label="Moja Pay Demo"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
