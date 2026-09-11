@@ -1,10 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:allowBackup="false"
-        android:icon="@drawable/ic_mojapay"
-        android:roundIcon="@drawable/ic_mojapay"
-        android:label="Moja Pay Demo"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:allowBackup="true"
+        android:icon="@drawable/ic_nexa"
+        android:roundIcon="@drawable/ic_nexa"
+        android:label="NEXA"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"
             android:exported="true"
