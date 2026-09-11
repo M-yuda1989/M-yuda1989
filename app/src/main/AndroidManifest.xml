@@ -1,9 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="false"
-        android:icon="@drawable/ic_mojapay"
-        android:roundIcon="@drawable/ic_mojapay"
-        android:label="Moja Pay Demo"
+        android:icon="@drawable/ic_social"
+        android:roundIcon="@drawable/ic_social"
+        android:label="Moja Social Demo"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"
