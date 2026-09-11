@@ -1,0 +1,51 @@
+name: Package One Social Demo APK
+
+on:
+  push:
+    branches: ["one-social-demo"]
+    paths:
+      - "app/**"
+      - "build.gradle"
+      - "settings.gradle"
+      - ".github/workflows/build-one-social.yml"
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Prepare APK
+        run: |
+          mkdir -p package
+          cp app/build/outputs/apk/debug/app-debug.apk package/OneSocial-Demo-v1.0.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneSocial-Demo-v1.0
+          path: package/OneSocial-Demo-v1.0.apk
+          if-no-files-found: error
+          retention-days: 7
