@@ -3,14 +3,14 @@ plugins {
 }
 
 android {
-    namespace 'com.mojapay.sample'
+    namespace 'com.onesocial.demo'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.mojapay.sample'
+        applicationId 'com.onesocial.demo'
         minSdk 23
         targetSdk 35
-        versionCode 3
-        versionName '0.3-master-prompt-demo'
+        versionCode 1
+        versionName '1.0-demo'
     }
 }
